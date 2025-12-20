@@ -2,7 +2,7 @@ import os
 import json
 import requests
 import tweepy
-from google import genai  # NEW: Modern GenAI SDK
+from google_genai import genai  # NEW: Modern GenAI SDK
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
