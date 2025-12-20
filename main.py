@@ -4,7 +4,7 @@ import requests
 import tweepy
 from dotenv import load_dotenv
 
-# Force reload environment variables for local testing
+# Force reload environment variables
 load_dotenv(override=True)
 
 # --- 1. CONFIGURATION ---
@@ -22,53 +22,49 @@ HISTORY_FILE = "posted_news.txt"
 
 # --- 2. DEDUPLICATION LOGIC ---
 def has_been_posted(news_url):
-    """Checks if the URL is already in the history file."""
-    if not os.path.exists(HISTORY_FILE):
-        return False
+    if not os.path.exists(HISTORY_FILE): return False
     with open(HISTORY_FILE, "r") as f:
         return news_url in f.read().splitlines()
 
 def mark_as_posted(news_url):
-    """Adds the URL to the history file to prevent double-posting."""
     with open(HISTORY_FILE, "a") as f:
         f.write(f"{news_url}\n")
 
 # --- 3. NEWS FETCHING ---
 def fetch_news():
-    """Fetches the latest technology news from India or globally."""
+    """Fetches news and returns the first unposted article with an image."""
     endpoints = [
         f"https://newsapi.org/v2/top-headlines?country=in&category=technology&apiKey={NEWS_API_KEY}",
-        f"https://newsapi.org/v2/everything?q=technology&language=en&sortBy=publishedAt&pageSize=5&apiKey={NEWS_API_KEY}"
+        f"https://newsapi.org/v2/everything?q=technology&language=en&sortBy=publishedAt&pageSize=10&apiKey={NEWS_API_KEY}"
     ]
     
     for url in endpoints:
         try:
             res = requests.get(url).json()
-            if res.get("status") == "ok" and res.get("totalResults", 0) > 0:
-                for article in res["articles"]:
-                    if not has_been_posted(article['url']):
+            if res.get("status") == "ok":
+                for article in res.get("articles", []):
+                    # We prefer articles that have an image for the new layout
+                    if not has_been_posted(article['url']) and article.get('urlToImage'):
                         return article
         except Exception as e:
             print(f"⚠️ Fetch Error: {e}")
-            continue
     return None
 
 # --- 4. BROADCASTING ---
-def broadcast(title, link, desc):
-    """Sends the news to Telegram (with Button) and X (OAuth 1.0a)."""
+def broadcast(title, link, desc, image_url):
+    """Sends news as a Photo with Caption to Telegram and Text to X."""
     
-    # --- A. TELEGRAM (HTML + Inline Button) ---
-    tg_url = f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage"
+    # --- A. TELEGRAM (Photo + Caption + Button) ---
+    tg_url = f"https://api.telegram.org/bot{TG_TOKEN}/sendPhoto"
     
-    # Professional Template
-    tg_text = (
-        f"🔥 <b>{title.upper()}</b>\n"
-        f"━━━━━━━━━━━━━━━━━━\n\n"
-        f"🎙 <i>{desc[:280]}...</i>\n\n"
+    # Styled HTML Caption
+    caption = (
+        f"🚨 <b>{title.upper()}</b>\n\n"
+        f"🎙 <i>{desc[:250]}...</i>\n\n"
         f"📡 @Infochowk #TechNews"
     )
     
-    # Inline "Read More" Button
+    # Inline keyboard for the button
     reply_markup = {
         "inline_keyboard": [[
             {"text": "📖 Read Full Story", "url": link}
@@ -77,14 +73,21 @@ def broadcast(title, link, desc):
     
     tg_payload = {
         'chat_id': TG_CHAT_ID,
-        'text': tg_text,
+        'photo': image_url, # Sends the image URL directly
+        'caption': caption,
         'parse_mode': 'HTML',
         'reply_markup': json.dumps(reply_markup)
     }
     
     try:
-        requests.post(tg_url, data=tg_payload)
-        print("✅ Telegram: Posted with Template")
+        tg_res = requests.post(tg_url, data=tg_payload)
+        if tg_res.status_code == 200:
+            print("✅ Telegram: Photo Post Successful")
+        else:
+            # Fallback to text message if image fails
+            requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage", 
+                          data={'chat_id': TG_CHAT_ID, 'text': caption, 'parse_mode': 'HTML'})
+            print("⚠️ Telegram: Image failed, sent text fallback")
     except Exception as e:
         print(f"❌ Telegram Error: {e}")
 
@@ -96,10 +99,8 @@ def broadcast(title, link, desc):
             access_token=X_ACCESS_TOKEN,
             access_token_secret=X_ACCESS_SECRET
         )
-        
-        # Simple text for X (no HTML allowed)
         x_text = f"🚨 {title}\n\nRead more: {link}\n\n#Infochowk #Tech"
-        client.create_tweet(text=x_text)
+        client.create_tweet(text=x_text) # Simple text post for X
         print("✅ X: Posted Successfully")
     except Exception as e:
         print(f"❌ X Error: {e}")
@@ -114,8 +115,9 @@ if __name__ == "__main__":
         broadcast(
             article['title'], 
             article['url'], 
-            article['description'] or "Stay updated with the latest in tech."
+            article['description'] or "Check out the latest tech news.",
+            article['urlToImage']
         )
         mark_as_posted(article['url'])
     else:
-        print("📭 No new updates found at this time.")
+        print("📭 No new updates with images found.")
