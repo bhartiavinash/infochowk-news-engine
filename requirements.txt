@@ -1,1 +1,4 @@
 google-generativeai
+tweepy
+requests
+python-dotenv
