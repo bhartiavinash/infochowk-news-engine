@@ -2,7 +2,7 @@ import os
 import json
 import requests
 import tweepy
-import google.generativeai as genai
+from google import genai  # NEW: Modern GenAI SDK
 from dotenv import load_dotenv
 
 load_dotenv(override=True)
@@ -21,14 +21,24 @@ X_ACCESS_SECRET = os.getenv("X_ACCESS_SECRET")
 
 HISTORY_FILE = "posted_news.txt"
 
-# --- AI SUMMARIZER ---
+# --- AI SUMMARIZER (Updated for google-genai) ---
 def get_ai_summary(title, description):
-    """Uses Gemini to create a unique, engaging 2-sentence summary."""
+    """Uses the latest Google GenAI SDK and Gemini 3 Flash."""
     try:
-        genai.configure(api_key=GEMINI_API_KEY)
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        prompt = f"Summarize this news in 2 sentences for social media. Be engaging.\nTitle: {title}\nContext: {description}"
-        response = model.generate_content(prompt)
+        # Initialize the new stateless client
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        
+        prompt = (
+            f"Summarize this news in 2 engaging sentences for social media.\n"
+            f"Title: {title}\n"
+            f"Context: {description}"
+        )
+        
+        # New API call structure
+        response = client.models.generate_content(
+            model='gemini-3-flash', # Latest high-speed frontier model
+            contents=prompt
+        )
         return response.text.strip()
     except Exception as e:
         print(f"⚠️ AI Summary failed: {e}")
@@ -51,7 +61,7 @@ def fetch_news():
         res = requests.get(url).json()
         if res.get("status") == "ok":
             for article in res.get("articles", []):
-                # Ensure article has essential data
+                # We need a URL and an Image for the pro layout
                 if not has_been_posted(article['url']) and article.get('urlToImage'):
                     return article
     except Exception as e:
@@ -68,7 +78,7 @@ def broadcast(article):
     # 1. Generate AI Content
     ai_summary = get_ai_summary(title, article['description'])
 
-    # 2. TELEGRAM (Photo + AI Summary + Button)
+    # 2. TELEGRAM (Photo + AI Summary + Source Badge)
     tg_url = f"https://api.telegram.org/bot{TG_TOKEN}/sendPhoto"
     caption = (
         f"🚨 <b>{title.upper()}</b>\n"
@@ -87,7 +97,7 @@ def broadcast(article):
             'parse_mode': 'HTML',
             'reply_markup': json.dumps(reply_markup)
         })
-        print("✅ Telegram: Posted with AI Summary")
+        print("✅ Telegram: Posted Successfully")
     except Exception as e:
         print(f"❌ Telegram Error: {e}")
 
@@ -98,10 +108,10 @@ def broadcast(article):
             access_token=X_ACCESS_TOKEN, access_token_secret=X_ACCESS_SECRET
         )
         
-        # Tweet 1: Headline
+        # Tweet 1: Headline & Source
         t1 = client.create_tweet(text=f"🚨 BREAKING: {title}\n\n📰 Source: {source}")
         
-        # Tweet 2: AI Summary + Link (Threaded)
+        # Tweet 2: AI Summary & Link (Threaded)
         client.create_tweet(
             text=f"🎙 Summary: {ai_summary}\n\n🔗 Read more: {link} #Infochowk",
             in_reply_to_tweet_id=t1.data['id']
@@ -111,7 +121,7 @@ def broadcast(article):
         print(f"❌ X Error: {e}")
 
 if __name__ == "__main__":
-    print("🛰️ Infochowk AI Engine Starting...")
+    print("🛰️ Infochowk Engine Starting...")
     news = fetch_news()
     if news:
         broadcast(news)
