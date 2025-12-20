@@ -2,17 +2,18 @@ import os
 import json
 import requests
 import tweepy
+import google.generativeai as genai
 from dotenv import load_dotenv
 
-# Force reload environment variables
 load_dotenv(override=True)
 
-# --- 1. CONFIGURATION ---
+# --- CONFIGURATION ---
 NEWS_API_KEY = os.getenv("NEWS_API_KEY")
 TG_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TG_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
+GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
-# X Credentials (OAuth 1.0a User Context)
+# X Credentials (OAuth 1.0a)
 X_API_KEY = os.getenv("X_API_KEY")
 X_API_SECRET = os.getenv("X_API_SECRET")
 X_ACCESS_TOKEN = os.getenv("X_ACCESS_TOKEN")
@@ -20,7 +21,20 @@ X_ACCESS_SECRET = os.getenv("X_ACCESS_SECRET")
 
 HISTORY_FILE = "posted_news.txt"
 
-# --- 2. DEDUPLICATION LOGIC ---
+# --- AI SUMMARIZER ---
+def get_ai_summary(title, description):
+    """Uses Gemini to create a unique, engaging 2-sentence summary."""
+    try:
+        genai.configure(api_key=GEMINI_API_KEY)
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        prompt = f"Summarize this news in 2 sentences for social media. Be engaging.\nTitle: {title}\nContext: {description}"
+        response = model.generate_content(prompt)
+        return response.text.strip()
+    except Exception as e:
+        print(f"⚠️ AI Summary failed: {e}")
+        return description[:250] if description else "Latest tech update from Infochowk."
+
+# --- DEDUPLICATION ---
 def has_been_posted(news_url):
     if not os.path.exists(HISTORY_FILE): return False
     with open(HISTORY_FILE, "r") as f:
@@ -30,94 +44,77 @@ def mark_as_posted(news_url):
     with open(HISTORY_FILE, "a") as f:
         f.write(f"{news_url}\n")
 
-# --- 3. NEWS FETCHING ---
+# --- NEWS FETCHING ---
 def fetch_news():
-    """Fetches news and returns the first unposted article with an image."""
-    endpoints = [
-        f"https://newsapi.org/v2/top-headlines?country=in&category=technology&apiKey={NEWS_API_KEY}",
-        f"https://newsapi.org/v2/everything?q=technology&language=en&sortBy=publishedAt&pageSize=10&apiKey={NEWS_API_KEY}"
-    ]
-    
-    for url in endpoints:
-        try:
-            res = requests.get(url).json()
-            if res.get("status") == "ok":
-                for article in res.get("articles", []):
-                    # We prefer articles that have an image for the new layout
-                    if not has_been_posted(article['url']) and article.get('urlToImage'):
-                        return article
-        except Exception as e:
-            print(f"⚠️ Fetch Error: {e}")
+    url = f"https://newsapi.org/v2/top-headlines?country=in&category=technology&apiKey={NEWS_API_KEY}"
+    try:
+        res = requests.get(url).json()
+        if res.get("status") == "ok":
+            for article in res.get("articles", []):
+                # Ensure article has essential data
+                if not has_been_posted(article['url']) and article.get('urlToImage'):
+                    return article
+    except Exception as e:
+        print(f"❌ Fetch Error: {e}")
     return None
 
-# --- 4. BROADCASTING ---
-def broadcast(title, link, desc, image_url):
-    """Sends news as a Photo with Caption to Telegram and Text to X."""
+# --- BROADCASTING ---
+def broadcast(article):
+    title = article['title']
+    link = article['url']
+    image_url = article['urlToImage']
+    source = article['source']['name']
     
-    # --- A. TELEGRAM (Photo + Caption + Button) ---
+    # 1. Generate AI Content
+    ai_summary = get_ai_summary(title, article['description'])
+
+    # 2. TELEGRAM (Photo + AI Summary + Button)
     tg_url = f"https://api.telegram.org/bot{TG_TOKEN}/sendPhoto"
-    
-    # Styled HTML Caption
     caption = (
-        f"🚨 <b>{title.upper()}</b>\n\n"
-        f"🎙 <i>{desc[:250]}...</i>\n\n"
+        f"🚨 <b>{title.upper()}</b>\n"
+        f"📰 <b>Source:</b> {source}\n"
+        f"━━━━━━━━━━━━━━━━━━\n\n"
+        f"🎙 <i>{ai_summary}</i>\n\n"
         f"📡 @Infochowk #TechNews"
     )
-    
-    # Inline keyboard for the button
-    reply_markup = {
-        "inline_keyboard": [[
-            {"text": "📖 Read Full Story", "url": link}
-        ]]
-    }
-    
-    tg_payload = {
-        'chat_id': TG_CHAT_ID,
-        'photo': image_url, # Sends the image URL directly
-        'caption': caption,
-        'parse_mode': 'HTML',
-        'reply_markup': json.dumps(reply_markup)
-    }
+    reply_markup = {"inline_keyboard": [[{"text": "📖 Read Full Story", "url": link}]]}
     
     try:
-        tg_res = requests.post(tg_url, data=tg_payload)
-        if tg_res.status_code == 200:
-            print("✅ Telegram: Photo Post Successful")
-        else:
-            # Fallback to text message if image fails
-            requests.post(f"https://api.telegram.org/bot{TG_TOKEN}/sendMessage", 
-                          data={'chat_id': TG_CHAT_ID, 'text': caption, 'parse_mode': 'HTML'})
-            print("⚠️ Telegram: Image failed, sent text fallback")
+        requests.post(tg_url, data={
+            'chat_id': TG_CHAT_ID,
+            'photo': image_url,
+            'caption': caption,
+            'parse_mode': 'HTML',
+            'reply_markup': json.dumps(reply_markup)
+        })
+        print("✅ Telegram: Posted with AI Summary")
     except Exception as e:
         print(f"❌ Telegram Error: {e}")
 
-    # --- B. X (Twitter) ---
+    # 3. X THREADING (Headline -> AI Summary -> Link)
     try:
         client = tweepy.Client(
-            consumer_key=X_API_KEY,
-            consumer_secret=X_API_SECRET,
-            access_token=X_ACCESS_TOKEN,
-            access_token_secret=X_ACCESS_SECRET
+            consumer_key=X_API_KEY, consumer_secret=X_API_SECRET,
+            access_token=X_ACCESS_TOKEN, access_token_secret=X_ACCESS_SECRET
         )
-        x_text = f"🚨 {title}\n\nRead more: {link}\n\n#Infochowk #Tech"
-        client.create_tweet(text=x_text) # Simple text post for X
-        print("✅ X: Posted Successfully")
+        
+        # Tweet 1: Headline
+        t1 = client.create_tweet(text=f"🚨 BREAKING: {title}\n\n📰 Source: {source}")
+        
+        # Tweet 2: AI Summary + Link (Threaded)
+        client.create_tweet(
+            text=f"🎙 Summary: {ai_summary}\n\n🔗 Read more: {link} #Infochowk",
+            in_reply_to_tweet_id=t1.data['id']
+        )
+        print("✅ X: Thread Posted Successfully")
     except Exception as e:
         print(f"❌ X Error: {e}")
 
-# --- 5. MAIN EXECUTION ---
 if __name__ == "__main__":
-    print("🛰️ Infochowk Engine Scanning for News...")
-    article = fetch_news()
-    
-    if article:
-        print(f"📰 New Story: {article['title']}")
-        broadcast(
-            article['title'], 
-            article['url'], 
-            article['description'] or "Check out the latest tech news.",
-            article['urlToImage']
-        )
-        mark_as_posted(article['url'])
+    print("🛰️ Infochowk AI Engine Starting...")
+    news = fetch_news()
+    if news:
+        broadcast(news)
+        mark_as_posted(news['url'])
     else:
-        print("📭 No new updates with images found.")
+        print("📭 No new stories found.")
