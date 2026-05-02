@@ -504,3 +504,4 @@ https://gizmodo.com/astronomer-finds-a-shortcut-to-mars-by-following-an-asteroid
 https://www.theverge.com/tech/921022/elon-musk-cross-openai-altman
 https://www.bbc.com/news/articles/clypvwjjlgzo
 https://www.businessinsider.com/top-vc-antler-skipping-investing-vibe-coding-startups-lovable-ai-2026-5
+https://www.theverge.com/tech/922243/linux-cve-2026-3141-copy-fail-exploit
