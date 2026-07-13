@@ -687,3 +687,4 @@ https://abcnews.com/video/134135596/
 https://www.theverge.com/tech/962485/meta-muse-image-ai-model-instagram
 https://www.theverge.com/column/963346/ai-data-centers-fight
 https://www.wired.com/story/europe-is-fed-up-and-wants-its-own-ai/
+https://www.theverge.com/ai-artificial-intelligence/950412/anthropic-trump-adminstration-claude-mythos-fable-5-export-controls
