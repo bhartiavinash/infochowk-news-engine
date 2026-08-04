@@ -737,3 +737,4 @@ https://www.theverge.com/ai-artificial-intelligence/974018/pippa-seedance-artist
 https://gizmodo.com/this-ai-browser-is-building-the-front-end-for-the-dead-internet-2000791435
 https://www.wired.com/story/the-army-is-burning-through-its-ai-tokens/
 https://www.wired.com/story/prompt-injection-attacks-are-thwarting-ai-hacking-agents/
+https://www.theverge.com/ai-artificial-intelligence/973384/linkedin-seems-like-ai-slop-button
