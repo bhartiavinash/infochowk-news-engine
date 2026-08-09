@@ -754,3 +754,4 @@ https://www.wired.com/story/jeff-dean-google-discovery-loop-startup/
 https://www.theverge.com/science/975545/spacex-x-earnings-ai-data-centers-compute-space
 https://gizmodo.com/these-are-the-only-ai-chips-anyone-should-care-about-2000795019
 https://www.theverge.com/entertainment/976939/roku-fairground-ai-fast-channel
+https://www.theverge.com/ai-artificial-intelligence/975577/aisi-openai-anthropic-agent-hacking
