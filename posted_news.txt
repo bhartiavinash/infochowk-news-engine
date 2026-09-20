@@ -852,3 +852,4 @@ https://www.bbc.co.uk/news/articles/cm207d6qy0d1o
 https://www.businessinsider.com/midterm-elections-stock-market-investor-guide-democrats-house-senate-outcomes-2026-9#article
 https://www.theverge.com/ai-artificial-intelligence/997358/what-hollywood-thinks-about-existential-ai-warnings
 https://www.wired.com/story/mathematicians-cant-quit-ai/
+https://www.wired.com/story/kernel-panic-ai-vulnerability-explosion/
