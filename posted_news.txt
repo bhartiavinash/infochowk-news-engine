@@ -873,3 +873,4 @@ https://www.theverge.com/tech/1000794/tesla-optimus-production-issues-hands
 https://www.entrepreneur.com/business-news/googles-next-ai-data-center-might-be-in-space
 https://www.theverge.com/ai-artificial-intelligence/1001193/engram-sampler-ai-hallucinations-music
 https://www.wired.com/story/space-lasers-are-about-to-get-their-first-real-test-generating-energy/
+https://www.theverge.com/ai-artificial-intelligence/1001590/openai-devday-2026-aeon-ai-agent
